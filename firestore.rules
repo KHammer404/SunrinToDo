@@ -1,0 +1,441 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isClassMemberById(classId) {
+      return isSignedIn() &&
+          exists(/databases/$(database)/documents/classes/$(classId)) &&
+          get(/databases/$(database)/documents/classes/$(classId)).data.memberIds is list &&
+          request.auth.uid in
+              get(/databases/$(database)/documents/classes/$(classId)).data.memberIds;
+    }
+
+    function isCurrentClassMember() {
+      return isSignedIn() &&
+          resource.data.memberIds is list &&
+          request.auth.uid in resource.data.memberIds;
+    }
+
+    function isValidInviteCode(code) {
+      return code is string && code.size() == 6;
+    }
+
+    function isValidClassColor(colorValue) {
+      return colorValue is int &&
+          colorValue >= 0 &&
+          colorValue <= 4294967295;
+    }
+
+    function isValidClassName(name) {
+      return name is string && name.size() > 0 && name.size() <= 60;
+    }
+
+    function isValidEventCategory(category) {
+      return category is string &&
+          ['performance', 'exam', 'assignment', 'notice', 'other']
+              .hasAny([category]);
+    }
+
+    function isValidClassCreate() {
+      return isSignedIn() &&
+          request.resource.data.keys().hasOnly([
+            'name',
+            'inviteCode',
+            'createdBy',
+            'memberIds',
+            'memberNames',
+            'colorValue',
+            'createdAt',
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'name',
+            'inviteCode',
+            'createdBy',
+            'memberIds',
+            'memberNames',
+            'colorValue',
+            'createdAt',
+          ]) &&
+          isValidClassName(request.resource.data.name) &&
+          isValidInviteCode(request.resource.data.inviteCode) &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.memberIds is list &&
+          request.resource.data.memberIds.size() == 1 &&
+          request.auth.uid in request.resource.data.memberIds &&
+          request.resource.data.memberNames is map &&
+          request.resource.data.memberNames.keys().hasOnly([request.auth.uid]) &&
+          request.resource.data.memberNames[request.auth.uid] is string &&
+          isValidClassColor(request.resource.data.colorValue) &&
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.createdAt == request.time;
+    }
+
+    function isSelfJoinClassUpdate() {
+      return isSignedIn() &&
+          !isCurrentClassMember() &&
+          resource.data.memberIds is list &&
+          request.resource.data.memberIds is list &&
+          request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1 &&
+          request.resource.data.memberIds.hasAll(resource.data.memberIds) &&
+          request.auth.uid in request.resource.data.memberIds &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'memberIds',
+            'memberNames',
+          ]) &&
+          resource.data.memberNames is map &&
+          request.resource.data.memberNames is map &&
+          request.resource.data.memberNames
+              .diff(resource.data.memberNames)
+              .affectedKeys()
+              .hasOnly([request.auth.uid]) &&
+          request.resource.data.memberNames[request.auth.uid] is string;
+    }
+
+    function isSelfLeaveClassUpdate() {
+      return isCurrentClassMember() &&
+          resource.data.createdBy != request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'memberIds',
+            'memberNames',
+          ]) &&
+          resource.data.memberIds is list &&
+          request.resource.data.memberIds is list &&
+          request.resource.data.memberIds.size() + 1 == resource.data.memberIds.size() &&
+          resource.data.memberIds.hasAll(request.resource.data.memberIds) &&
+          !(request.auth.uid in request.resource.data.memberIds) &&
+          resource.data.memberNames is map &&
+          request.resource.data.memberNames is map &&
+          request.resource.data.memberNames
+              .diff(resource.data.memberNames)
+              .affectedKeys()
+              .hasOnly([request.auth.uid]) &&
+          !(request.auth.uid in request.resource.data.memberNames.keys());
+    }
+
+    function isClassOwnerSettingsUpdate() {
+      return isCurrentClassMember() &&
+          resource.data.createdBy == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'colorValue',
+          ]) &&
+          isValidClassColor(request.resource.data.colorValue);
+    }
+
+    function isValidClassInviteCreate(code) {
+      return isSignedIn() &&
+          isValidInviteCode(code) &&
+          request.resource.data.keys().hasOnly([
+            'code',
+            'classId',
+            'className',
+            'createdBy',
+            'createdAt',
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'code',
+            'classId',
+            'className',
+            'createdBy',
+            'createdAt',
+          ]) &&
+          request.resource.data.code == code &&
+          request.resource.data.classId is string &&
+          request.resource.data.classId.size() > 0 &&
+          isValidClassName(request.resource.data.className) &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.createdAt == request.time &&
+          existsAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)) &&
+          getAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.createdBy == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.inviteCode == code &&
+          getAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.name == request.resource.data.className;
+    }
+
+    function isValidEventDocument() {
+      return request.resource.data.keys().hasOnly([
+            'title',
+            'category',
+            'startDate',
+            'endDate',
+            'classId',
+            'createdBy',
+            'memberIds',
+            'lastEditedBy',
+            'lastEditedAt',
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'title',
+            'category',
+            'startDate',
+            'endDate',
+            'classId',
+            'createdBy',
+            'memberIds',
+            'lastEditedBy',
+            'lastEditedAt',
+          ]) &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          request.resource.data.title.size() <= 100 &&
+          isValidEventCategory(request.resource.data.category) &&
+          request.resource.data.startDate is timestamp &&
+          request.resource.data.endDate is timestamp &&
+          request.resource.data.endDate >= request.resource.data.startDate &&
+          request.resource.data.classId is string &&
+          request.resource.data.classId.size() > 0 &&
+          request.resource.data.createdBy is string &&
+          request.resource.data.memberIds is list &&
+          request.resource.data.lastEditedBy is string &&
+          request.resource.data.lastEditedAt is timestamp &&
+          request.resource.data.lastEditedAt == request.time;
+    }
+
+    function matchesCurrentClassMemberSnapshot(classId) {
+      return exists(/databases/$(database)/documents/classes/$(classId)) &&
+          get(/databases/$(database)/documents/classes/$(classId)).data.memberIds is list &&
+          request.resource.data.memberIds.size() ==
+              get(/databases/$(database)/documents/classes/$(classId)).data.memberIds.size() &&
+          request.resource.data.memberIds.hasAll(
+              get(/databases/$(database)/documents/classes/$(classId)).data.memberIds) &&
+          get(/databases/$(database)/documents/classes/$(classId)).data.memberIds
+              .hasAll(request.resource.data.memberIds);
+    }
+
+    function isValidNotificationDocument() {
+      return request.resource.data.keys().hasOnly([
+            'userId',
+            'eventId',
+            'scheduledAt',
+            'type',
+            'sent',
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'userId',
+            'scheduledAt',
+            'type',
+            'sent',
+          ]) &&
+          request.resource.data.userId is string &&
+          (request.resource.data.eventId == null ||
+              request.resource.data.eventId is string) &&
+          request.resource.data.scheduledAt is timestamp &&
+          request.resource.data.type is string &&
+          request.resource.data.type.size() > 0 &&
+          request.resource.data.type.size() <= 32 &&
+          request.resource.data.sent is bool;
+    }
+
+    function isValidTimetableOverrideDateKey(dateKey) {
+      return dateKey is string && dateKey.matches('^\\d{8}$');
+    }
+
+    function isValidTimetableOverrideSubject(subject) {
+      return subject is string && subject.size() <= 80;
+    }
+
+    function isValidTimetablePeriodOverride(periods, periodKey) {
+      return !(periodKey in periods.keys()) || (
+        periods[periodKey] is map &&
+        periods[periodKey].keys().hasOnly([
+          'subject',
+          'originalSubject',
+          'updatedAt',
+        ]) &&
+        periods[periodKey].keys().hasAll([
+          'subject',
+          'updatedAt',
+        ]) &&
+        isValidTimetableOverrideSubject(periods[periodKey].subject) &&
+        (!('originalSubject' in periods[periodKey].keys()) ||
+          isValidTimetableOverrideSubject(
+              periods[periodKey].originalSubject)) &&
+        periods[periodKey].updatedAt is timestamp
+      );
+    }
+
+    function isValidTimetableOverridePeriods(periods) {
+      return periods is map &&
+          periods.keys().hasOnly([
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9',
+            '10',
+            '11',
+            '12',
+          ]) &&
+          isValidTimetablePeriodOverride(periods, '1') &&
+          isValidTimetablePeriodOverride(periods, '2') &&
+          isValidTimetablePeriodOverride(periods, '3') &&
+          isValidTimetablePeriodOverride(periods, '4') &&
+          isValidTimetablePeriodOverride(periods, '5') &&
+          isValidTimetablePeriodOverride(periods, '6') &&
+          isValidTimetablePeriodOverride(periods, '7') &&
+          isValidTimetablePeriodOverride(periods, '8') &&
+          isValidTimetablePeriodOverride(periods, '9') &&
+          isValidTimetablePeriodOverride(periods, '10') &&
+          isValidTimetablePeriodOverride(periods, '11') &&
+          isValidTimetablePeriodOverride(periods, '12');
+    }
+
+    function isValidTimetableOverrideDocument(dateKey) {
+      return isValidTimetableOverrideDateKey(dateKey) &&
+          request.resource.data.keys().hasOnly([
+            'date',
+            'periods',
+            'updatedAt',
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'date',
+            'periods',
+            'updatedAt',
+          ]) &&
+          request.resource.data.date == dateKey &&
+          isValidTimetableOverridePeriods(request.resource.data.periods) &&
+          request.resource.data.updatedAt is timestamp &&
+          request.resource.data.updatedAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSelf(userId);
+
+      // users/{uid}/timetableOverrides/{yyyyMMdd}
+      // - date: yyyyMMdd document id
+      // - periods: map keyed by period number, 1-12
+      // - each period stores override subject, optional NEIS original subject,
+      //   and updatedAt so individual periods or full days can be reset.
+      // - updatedAt: document-level last write time
+      match /timetableOverrides/{dateKey} {
+        allow read: if isSelf(userId);
+        allow create, update: if isSelf(userId) &&
+            isValidTimetableOverrideDocument(dateKey);
+        allow delete: if isSelf(userId);
+      }
+    }
+
+    match /schools/{schoolCode} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // classes/{classId}
+    // - name: string
+    // - inviteCode: 6-char string
+    // - createdBy: uid
+    // - memberIds: uid list
+    // - memberNames: {uid: displayName}
+    // - colorValue: ARGB int
+    // - createdAt: timestamp
+    match /classes/{classId} {
+      allow read: if isCurrentClassMember();
+      allow create: if isValidClassCreate();
+      allow update: if isSelfJoinClassUpdate() ||
+          isSelfLeaveClassUpdate() ||
+          isClassOwnerSettingsUpdate();
+      allow delete: if isCurrentClassMember() &&
+          request.auth.uid == resource.data.createdBy &&
+          resource.data.memberIds is list &&
+          resource.data.memberIds.size() == 1;
+    }
+
+    // classInvites/{code}
+    // - Public minimum lookup document for joining by invite code.
+    // - code: invite code and document id
+    // - classId: target class document id
+    // - className: display name used before joining
+    // - createdBy, createdAt
+    match /classInvites/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isValidClassInviteCreate(code);
+      allow update: if false;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.createdBy;
+    }
+
+    // events/{eventId}
+    // - title, category, startDate, endDate
+    // - classId: 'personal' or class document id
+    // - createdBy: uid
+    // - memberIds: snapshot of members at creation time
+    // - lastEditedBy, lastEditedAt
+    match /events/{eventId} {
+      allow read: if isSignedIn() && (
+        (resource.data.classId == 'personal' &&
+            request.auth.uid == resource.data.createdBy) ||
+        (resource.data.classId != 'personal' &&
+            isClassMemberById(resource.data.classId))
+      );
+
+      allow create: if isSignedIn() &&
+          isValidEventDocument() && (
+            (
+              request.resource.data.classId == 'personal' &&
+                  request.resource.data.createdBy == request.auth.uid &&
+                  request.resource.data.lastEditedBy == request.auth.uid &&
+                  request.resource.data.memberIds.size() == 1 &&
+                  request.auth.uid in request.resource.data.memberIds
+            ) ||
+            (
+              request.resource.data.classId != 'personal' &&
+                  request.resource.data.createdBy == request.auth.uid &&
+                  request.resource.data.lastEditedBy == request.auth.uid &&
+                  isClassMemberById(request.resource.data.classId) &&
+                  matchesCurrentClassMemberSnapshot(
+                      request.resource.data.classId)
+            )
+          );
+
+      allow update: if isSignedIn() &&
+          isValidEventDocument() &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.classId == resource.data.classId &&
+          request.resource.data.memberIds == resource.data.memberIds &&
+          request.resource.data.lastEditedBy == request.auth.uid && (
+            (
+              resource.data.classId == 'personal' &&
+                  request.auth.uid == resource.data.createdBy &&
+                  request.resource.data.classId == 'personal' &&
+                  request.resource.data.memberIds.size() == 1 &&
+                  request.auth.uid in request.resource.data.memberIds
+            ) ||
+            (
+              resource.data.classId != 'personal' &&
+                  isClassMemberById(resource.data.classId)
+            )
+          );
+
+      allow delete: if isSignedIn() && (
+        (resource.data.classId == 'personal' &&
+            request.auth.uid == resource.data.createdBy) ||
+        (resource.data.classId != 'personal' &&
+            isClassMemberById(resource.data.classId))
+      );
+    }
+
+    // notifications/{notificationId}
+    // - userId, eventId?, scheduledAt, type, sent
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() &&
+          isValidNotificationDocument() &&
+          request.auth.uid == request.resource.data.userId;
+      allow update: if isSignedIn() &&
+          request.auth.uid == resource.data.userId &&
+          isValidNotificationDocument() &&
+          request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+    }
+  }
+}
