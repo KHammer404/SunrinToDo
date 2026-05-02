@@ -35,6 +35,11 @@ migrate_working_dir/
 node_modules/
 tools/ralph-loop/logs/
 
+# Local environment/config values
+.env
+.env.*
+firebase_dart_defines.local.json
+
 # Symbolication related
 app.*.symbols
 

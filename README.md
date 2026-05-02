@@ -39,6 +39,8 @@ flutterfire configure
 
 현재 `lib/firebase_options.dart` 는 공개 저장소용 템플릿입니다. `flutterfire configure` 로 교체하거나, 파일에 적힌 `--dart-define` 값들을 직접 주입해야 앱이 Firebase를 초기화할 수 있습니다.
 
+로컬 전용 값은 커밋하지 않는 `firebase_dart_defines.local.json` 에 둘 수 있습니다.
+
 ### 2. NEIS API 키
 
 NEIS 키는 저장소에 커밋하지 않고 `--dart-define` 으로 주입합니다.
@@ -56,6 +58,14 @@ Android 또는 연결된 기본 기기에서 실행:
 
 ```bash
 flutter run --dart-define=NEIS_API_KEY=YOUR_NEIS_API_KEY
+```
+
+로컬 Firebase define 파일을 쓰는 경우:
+
+```bash
+flutter run \
+  --dart-define-from-file=firebase_dart_defines.local.json \
+  --dart-define=NEIS_API_KEY=YOUR_NEIS_API_KEY
 ```
 
 특정 기기 지정:
