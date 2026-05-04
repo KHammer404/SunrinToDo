@@ -1,5 +1,5 @@
 # SunrinToDo
-
+asdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
 선린인터넷고등학교 학생용 Flutter 앱입니다. 시간표, 급식, 학급 캘린더, 학사일정을 한 곳에서 확인하는 것을 목표로 합니다.
 
 ## 현재 구현 범위
